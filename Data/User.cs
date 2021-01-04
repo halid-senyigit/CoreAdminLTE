@@ -13,6 +13,10 @@ namespace CoreAdminLTE.Data
 
         public string Password { get; set; }
 
+        public string ProfilePicture { get; set; }
+
+        public string PassResetCode { get; set; }
+
         public virtual ICollection<UserRoleRel> UserRoleRels { get; set; }
     }
 }

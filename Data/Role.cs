@@ -9,6 +9,8 @@ namespace CoreAdminLTE.Data
 
         public string Name { get; set; }
 
+        public string Description { get; set; }
+
 
         public virtual ICollection<UserRoleRel> UserRoleRels { get; set; }
 
