@@ -8,6 +8,7 @@ using CoreAdminLTE.Models;
 using CoreAdminLTE.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 //using CoreAdminLTE.Models;
 
 namespace CoreAdminLTE.Controllers
@@ -17,22 +18,53 @@ namespace CoreAdminLTE.Controllers
         private readonly ModelContext db;
         private readonly IMapper mapper;
         private readonly IEmailService emailService;
+        private readonly IConfiguration configuration;
 
         public AccountController(
             ModelContext db,
             IMapper mapper,
-            IEmailService emailService
+            IEmailService emailService,
+            IConfiguration configuration
         )
         {
             this.db = db;
             this.mapper = mapper;
             this.emailService = emailService;
+            this.configuration = configuration;
         }
 
         //Profile page
-        [Authorize("admin")]
         public IActionResult Index()
         {
+
+            string userID = db.Users.FirstOrDefault().UserID.ToString();
+
+
+            // encrypt et
+            string encrypted = CryptologyHelper.EncryptString(userID, configuration["Keys:EncrypyKey1"]);
+
+            // ve database'e kaydet ve oluşan kodu mail gönder // User tablosunda ResetCode alanı gerekecek // migtation
+            //.... 
+
+
+            ViewBag.encrypted = encrypted;
+            // mail gönder link = baseUrl/?resetCode={encrypted}
+
+
+
+            // maildeki linke tıklayarak gelen kullanıcıdan alınan resetCode'u decrypt et
+            string decrypted = CryptologyHelper.DecryptString(encrypted, configuration["Keys:EncrypyKey1"]);
+
+            // mailden gelen userID(decrypted) databasedeki UserID &&
+            // mailden gelen resetCode ile databasedeki ResetCode eşleşiyorsa bu kullanıcının artık güncelleme yapabilmesi gerekir.
+
+
+
+
+
+
+
+            ViewBag.decrypted = decrypted;
             return View();
         }
 
