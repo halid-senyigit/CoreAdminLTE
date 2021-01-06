@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using CoreAdminLTE.Extensions;
 
 namespace CoreAdminLTE
 {
@@ -34,6 +35,7 @@ namespace CoreAdminLTE
         {
             services.AddControllersWithViews();
             services.AddMvc().AddRazorRuntimeCompilation();
+            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
             services.AddDbContext<ModelContext>(opt => {
                 opt.UseMySQL(Configuration["ConnectionStrings:MySQLConnection"]);
@@ -93,6 +95,7 @@ namespace CoreAdminLTE
             }
             app.UseHttpsRedirection();
             app.UseStaticFiles();
+            app.UseHttpContext();
 
             app.UseRouting();
 

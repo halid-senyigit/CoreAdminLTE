@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using AutoMapper;
 using CoreAdminLTE.Data;
+using CoreAdminLTE.Extensions;
 using CoreAdminLTE.Models;
 using CoreAdminLTE.Services.Interfaces;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -33,38 +37,36 @@ namespace CoreAdminLTE.Controllers
             this.configuration = configuration;
         }
 
-        //Profile page
+        [Authorize]
         public IActionResult Index()
         {
-
-            string userID = db.Users.FirstOrDefault().UserID.ToString();
-
-
-            // encrypt et
-            string encrypted = CryptologyHelper.EncryptString(userID, configuration["Keys:EncrypyKey1"]);
-
-            // ve database'e kaydet ve oluşan kodu mail gönder // User tablosunda ResetCode alanı gerekecek // migtation
-            //.... 
+            // TODO: Your code here
+            return View();
+        }
 
 
-            ViewBag.encrypted = encrypted;
-            // mail gönder link = baseUrl/?resetCode={encrypted}
+        //Profile page
+        public IActionResult Login()
+        {
+            return View();
+        }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Login(string email, string password)
+        {
+            User u = db.Users.FirstOrDefault(n => n.Email == email && n.Password == password);
+            if (u != null)
+            {
+                ClaimsIdentity identity = new ClaimsIdentity(new[]{
+                    new Claim(ClaimTypes.Name, u.Fullname),
+                    new Claim(ClaimTypes.Email, u.Email)
+                }, CookieAuthenticationDefaults.AuthenticationScheme);
 
-
-            // maildeki linke tıklayarak gelen kullanıcıdan alınan resetCode'u decrypt et
-            string decrypted = CryptologyHelper.DecryptString(encrypted, configuration["Keys:EncrypyKey1"]);
-
-            // mailden gelen userID(decrypted) databasedeki UserID &&
-            // mailden gelen resetCode ile databasedeki ResetCode eşleşiyorsa bu kullanıcının artık güncelleme yapabilmesi gerekir.
-
-
-
-
-
-
-
-            ViewBag.decrypted = decrypted;
+                var principal = new ClaimsPrincipal(identity);
+                await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+                return RedirectToAction("Index", "Home");
+            }
             return View();
         }
 
@@ -75,7 +77,8 @@ namespace CoreAdminLTE.Controllers
         }
 
         [HttpPost]
-        public async Task <IActionResult> Register(RegisterModel registerModel)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Register(RegisterModel registerModel)
         {
             if (ModelState.IsValid)
             {
@@ -89,6 +92,73 @@ namespace CoreAdminLTE.Controllers
             }
             return View();
         }
+
+        public IActionResult ResetPassword()
+        {
+            return View();
+        }
+
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult ResetPassword(string email)
+        {
+            User user = db.Users.FirstOrDefault(n => n.Email == email);
+            if (user == null)
+                return RedirectToAction("Index", "Home");
+
+            string resetCode = CryptologyHelper.EncryptString(user.UserID.ToString(), configuration["Keys:EncryptKey1"]);
+            string body = "Hi, " + user.Fullname +
+            "<br /> Follow the link to reset your password: <a target=\"_BLANK\" href=\"" +
+            MyHttpContext.AppBaseUrl + "/Account/ResetPassword2?resetCode=" + resetCode +
+            "\">Click</a>";
+
+            user.PassResetCode = resetCode;
+            user.ResetCodeExpireDate = DateTime.Now.AddHours(1);
+            db.Entry(user).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+            db.SaveChanges();
+            emailService.SendEmailAsync(user.Email, "Password Reset", body);
+
+            return RedirectToAction("Index", "Home");
+        }
+
+        public IActionResult ResetPassword2(string resetCode)
+        {
+            User u = db.Users.FirstOrDefault(n => n.PassResetCode == resetCode && n.ResetCodeExpireDate > DateTime.Now);
+            if (u == null)
+                return RedirectToAction("Index", "Home");
+
+            ViewBag.resetCode = resetCode;
+
+
+            return View();
+        }
+
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult ResetPassword2(string password, string resetCode)
+        {
+            User u = db.Users.FirstOrDefault(n => n.PassResetCode == resetCode && n.ResetCodeExpireDate > DateTime.Now);
+
+            if (u == null)
+                return RedirectToAction("Index", "Home");
+
+            u.Password = password;
+            u.PassResetCode = null;
+            db.Entry(u).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+            db.SaveChanges();
+
+            return RedirectToAction("Index", "Home");
+        }
+
+
+        public async Task<IActionResult> Logout()
+        {
+            await HttpContext.SignOutAsync();
+            return RedirectToAction("Index");
+        }
+        
 
     }
 }

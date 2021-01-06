@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace CoreAdminLTE.Controllers
 {
-    [Authorize("admin")]
+    [Authorize]
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;

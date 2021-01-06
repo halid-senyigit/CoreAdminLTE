@@ -17,6 +17,8 @@ namespace CoreAdminLTE.Data
 
         public string PassResetCode { get; set; }
 
+        public DateTime ResetCodeExpireDate { get; set; }
+
         public virtual ICollection<UserRoleRel> UserRoleRels { get; set; }
     }
 }
