@@ -1,8 +1,10 @@
+using System.Threading.Tasks;
+
 namespace CoreAdminLTE.Services.Interfaces
 {
 
     public interface IEmailService
     {
-        void SendMail(EmailModel emailModel);
+        Task SendEmailAsync(string email, string subject, string body);
     }
 }

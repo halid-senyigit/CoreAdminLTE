@@ -75,7 +75,7 @@ namespace CoreAdminLTE.Controllers
         }
 
         [HttpPost]
-        public IActionResult Register(RegisterModel registerModel)
+        public async Task <IActionResult> Register(RegisterModel registerModel)
         {
             if (ModelState.IsValid)
             {
@@ -84,14 +84,7 @@ namespace CoreAdminLTE.Controllers
                 db.SaveChanges();
                 // success message will be added
                 // confirmation mail will be sent when emailService ready
-                emailService.SendMail(new Services.EmailModel()
-                {
-                    // email activation link UserModel....
-                    Body = "email activation link.......",
-                    Subject = "Register success",
-                    To = registerModel.Email
-
-                });
+                await emailService.SendEmailAsync(u.Email, "register", "kaydoldun h.o.");
                 return RedirectToAction("Index");
             }
             return View();

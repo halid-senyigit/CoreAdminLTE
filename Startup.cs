@@ -6,6 +6,7 @@ using AutoMapper;
 using CoreAdminLTE.Data;
 using CoreAdminLTE.Services;
 using CoreAdminLTE.Services.Interfaces;
+using CoreAdminLTE.Services.Models;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -72,6 +73,8 @@ namespace CoreAdminLTE
             });
 
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
+            services.Configure<SmtpSettings>(Configuration.GetSection("SmtpSettings"));
             services.AddSingleton<IEmailService, EmailService>();
         }
 

@@ -1,44 +1,63 @@
 using CoreAdminLTE.Services.Interfaces;
-using Microsoft.Extensions.Configuration;
+using CoreAdminLTE.Services.Models;
+using MailKit.Net.Smtp;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using MimeKit;
 using System;
-using System.Net.Mail;
+using System.Threading.Tasks;
+
 
 namespace CoreAdminLTE.Services
 {
-    public class EmailService : IEmailService, IDisposable
+
+    public class EmailService : IEmailService
     {
-        private readonly IConfiguration configuration;
-        private readonly SmtpClient smtpClient;
-        public EmailService(
-            IConfiguration configuration
-        )
-        {
-            this.configuration = configuration;
-            smtpClient = new SmtpClient();
+        private readonly SmtpSettings _smtpSettings;
+        private readonly IWebHostEnvironment _env;
 
+        public EmailService(IOptions<SmtpSettings> smtpSettings, IWebHostEnvironment env)
+        {
+            _smtpSettings = smtpSettings.Value;
+            _env = env;
         }
 
-        public void SendMail(EmailModel emailModel)
+        public async Task SendEmailAsync(string email, string subject, string body)
         {
-            
-            smtpClient.Host = configuration["Email:Host"]; // "mail.yandex.com"
-            smtpClient.Credentials = new System.Net.NetworkCredential(configuration["Email:UserName"], configuration["Email:Password"]);
-            int port = 587;
-            int.TryParse(configuration["Email:Port"], out port);
-            smtpClient.Port = port;
-            smtpClient.EnableSsl = true;
-            
-            MailMessage mailMessage = new MailMessage(configuration["Email:From"], emailModel.To, emailModel.Subject, emailModel.Body);
-            mailMessage.BodyEncoding =  System.Text.Encoding.UTF8;
+            try
+            {
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress(_smtpSettings.SenderName, _smtpSettings.SenderEmail));
+                message.To.Add(MailboxAddress.Parse(email));
+                message.Subject = subject;
+                message.Body = new TextPart("html")
+                {
+                    Text = body
+                };
 
-            smtpClient.Send(mailMessage);
+                using (var client = new SmtpClient())
+                {
+                    client.ServerCertificateValidationCallback = (s, c, h, e) => true;
 
-            
-        }
+                    if (_env.IsDevelopment())
+                    {
+                        await client.ConnectAsync(_smtpSettings.Server, _smtpSettings.Port, false);
+                    }
+                    else
+                    {
+                        await client.ConnectAsync(_smtpSettings.Server);
+                    }
 
-        public void Dispose()
-        {
-            smtpClient.Dispose();
+                    await client.AuthenticateAsync(_smtpSettings.Username, _smtpSettings.Password);
+                    await client.SendAsync(message);
+                    await client.DisconnectAsync(true);
+                }
+            }
+            catch (Exception e)
+            {
+                throw new InvalidOperationException(e.Message);
+            }
         }
     }
 }
