@@ -11,6 +11,7 @@ using CoreAdminLTE.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 //using CoreAdminLTE.Models;
@@ -22,19 +23,19 @@ namespace CoreAdminLTE.Controllers
         private readonly ModelContext db;
         private readonly IMapper mapper;
         private readonly IEmailService emailService;
-        private readonly IConfiguration configuration;
+        private readonly IDataProtector dataProtector;
 
         public AccountController(
             ModelContext db,
             IMapper mapper,
             IEmailService emailService,
-            IConfiguration configuration
+            IDataProtectionProvider protectionProvider
         )
         {
             this.db = db;
             this.mapper = mapper;
             this.emailService = emailService;
-            this.configuration = configuration;
+            this.dataProtector = protectionProvider.CreateProtector("protector_provider_account");
         }
 
         [Authorize]
@@ -55,7 +56,7 @@ namespace CoreAdminLTE.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(string email, string password)
         {
-            User u = db.Users.FirstOrDefault(n => n.Email == email && n.Password == password);
+            User u = db.Users.FirstOrDefault(n => n.Email == email && n.Password == password && n.IsActive == true);
             if (u != null)
             {
                 ClaimsIdentity identity = new ClaimsIdentity(new[]{
@@ -82,16 +83,47 @@ namespace CoreAdminLTE.Controllers
         {
             if (ModelState.IsValid)
             {
-                User u = mapper.Map<User>(registerModel);
-                db.Users.Add(u);
+                User user = mapper.Map<User>(registerModel);
+                user.IsActive = false;
+                user.ActivationCode = dataProtector.Protect(user.Email);
+
+                db.Users.Add(user);
                 db.SaveChanges();
                 // success message will be added
-                // confirmation mail will be sent when emailService ready
-                await emailService.SendEmailAsync(u.Email, "register", "kaydoldun h.o.");
+
+                
+
+                string body = "Hi, " + user.Fullname +
+                "<br /> Follow the link to activate your account: <a target=\"_BLANK\" href=\"" +
+                MyHttpContext.AppBaseUrl + "/Account/Activate?activationCode=" + user.ActivationCode +
+                "\">Click</a>";
+
+                await emailService.SendEmailAsync(user.Email, "Complate your registration", body);
                 return RedirectToAction("Index");
             }
             return View();
         }
+
+
+        public IActionResult Activate(string activationCode)
+        {
+            string email = dataProtector.Unprotect(activationCode);
+            User user = db.Users.FirstOrDefault(n => 
+                n.ActivationCode == activationCode && 
+                n.IsActive == false &&
+                n.Email == email
+            );
+            if(user == null)
+                return RedirectToAction("Register");
+            
+            user.ActivationCode = null;
+            user.IsActive = true;
+            db.Entry(user).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+            db.SaveChanges();
+
+            return RedirectToAction("Login", new { message = "activation.complate" });
+        }
+
 
         public IActionResult ResetPassword()
         {
@@ -107,7 +139,7 @@ namespace CoreAdminLTE.Controllers
             if (user == null)
                 return RedirectToAction("Index", "Home");
 
-            string resetCode = CryptologyHelper.EncryptString(user.UserID.ToString(), configuration["Keys:EncryptKey1"]);
+            string resetCode = dataProtector.Protect(user.Email);
             string body = "Hi, " + user.Fullname +
             "<br /> Follow the link to reset your password: <a target=\"_BLANK\" href=\"" +
             MyHttpContext.AppBaseUrl + "/Account/ResetPassword2?resetCode=" + resetCode +
@@ -124,7 +156,12 @@ namespace CoreAdminLTE.Controllers
 
         public IActionResult ResetPassword2(string resetCode)
         {
-            User u = db.Users.FirstOrDefault(n => n.PassResetCode == resetCode && n.ResetCodeExpireDate > DateTime.Now);
+            string decryptedEmail = dataProtector.Unprotect(resetCode);
+            User u = db.Users.FirstOrDefault(n =>
+                n.PassResetCode == resetCode &&
+                n.ResetCodeExpireDate > DateTime.Now &&
+                n.Email == decryptedEmail
+            );
             if (u == null)
                 return RedirectToAction("Index", "Home");
 
@@ -139,7 +176,12 @@ namespace CoreAdminLTE.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult ResetPassword2(string password, string resetCode)
         {
-            User u = db.Users.FirstOrDefault(n => n.PassResetCode == resetCode && n.ResetCodeExpireDate > DateTime.Now);
+            string decryptedEmail = dataProtector.Unprotect(resetCode);
+            User u = db.Users.FirstOrDefault(n =>
+                n.PassResetCode == resetCode &&
+                n.ResetCodeExpireDate > DateTime.Now &&
+                n.Email == decryptedEmail
+            );
 
             if (u == null)
                 return RedirectToAction("Index", "Home");
@@ -158,7 +200,7 @@ namespace CoreAdminLTE.Controllers
             await HttpContext.SignOutAsync();
             return RedirectToAction("Index");
         }
-        
+
 
     }
 }

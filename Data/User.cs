@@ -19,6 +19,10 @@ namespace CoreAdminLTE.Data
 
         public DateTime ResetCodeExpireDate { get; set; }
 
+        public bool IsActive { get; set; }
+
+        public string ActivationCode { get; set; }
+
         public virtual ICollection<UserRoleRel> UserRoleRels { get; set; }
     }
 }
